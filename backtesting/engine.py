@@ -39,7 +39,7 @@ def load_prices(path):
     return df.drop_duplicates('time').sort_values('time').reset_index(drop=True)
 
 
-def get_entry(signal, s5):
+def get_entry(signal, s5, ready_time=None):
     if s5.empty:
         return None, 'NO_ENTRY_DATA'
     direction = str(signal['direction']).upper().strip()
@@ -48,6 +48,11 @@ def get_entry(signal, s5):
     signal_time = pd.Timestamp(signal['timestamp_utc'])
     signal_time = signal_time.tz_localize('UTC') if signal_time.tzinfo is None else signal_time.tz_convert('UTC')
     assumed_time = signal_time + pd.Timedelta(seconds=ENTRY_DELAY_SECONDS)
+    if ready_time is not None:
+        ready_time = pd.Timestamp(ready_time)
+        if ready_time.tzinfo is None:
+            raise ValueError('Entry ready_time must be timezone-aware')
+        assumed_time = max(assumed_time, ready_time.tz_convert('UTC'))
     candidates = s5.loc[s5['time'] >= assumed_time]
     if candidates.empty:
         return None, 'NO_ENTRY_QUOTE'
@@ -113,8 +118,8 @@ def prepare_timeline(s5, m1, entry_time):
     return pd.concat([fine, coarse], ignore_index=True).sort_values('time').reset_index(drop=True)
 
 
-def simulate(signal, strategy, s5, m1):
-    entry, status = get_entry(signal, s5)
+def simulate(signal, strategy, s5, m1, ready_time=None):
+    entry, status = get_entry(signal, s5, ready_time=ready_time)
     result = {
         'message_id': int(signal['message_id']),
         'timestamp_utc': signal['timestamp_utc'],

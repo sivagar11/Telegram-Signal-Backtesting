@@ -13,6 +13,9 @@ load_dotenv()
 GRANULARITY_SECONDS = {
     "S5": 5,
     "M1": 60,
+    "M5": 300,
+    "M15": 900,
+    "H1": 3600,
 }
 
 PRICE_COLUMNS = [
@@ -205,6 +208,11 @@ class OandaClient:
             )
 
         df = pd.DataFrame(rows)
+
+        # Identical boundary overlaps are expected; conflicting copies are not.
+        duplicates = df[df.duplicated("time", keep=False)]
+        if not duplicates.empty and (duplicates.groupby("time")[PRICE_COLUMNS[1:]].nunique() > 1).any().any():
+            raise ValueError("OANDA returned conflicting candles for the same timestamp")
 
         df = (
             df.drop_duplicates(
